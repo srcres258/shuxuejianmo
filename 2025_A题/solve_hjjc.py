@@ -15,10 +15,17 @@ from sklearn.metrics import r2_score
 # 设置字体，能够显示中文
 matplotlib.rc("font",family='SimSun',weight="bold")
 
-DIANZHAN_ID: int = 1
+DIANZHAN_ID: int
 TIME_COL: str = '时间'
 VALUE_COL: str = '辐照强度w/m2'
 ESTIMATED_VALUE_COL: str = '估计辐照强度w/m2'
+
+DIANZHAN_ID = int(input("请输入要处理的电站编号："))
+if DIANZHAN_ID not in range(1, 5):
+    print("输入错误，电站编号为1~4，请重新输入！")
+    exit(1)
+    
+print("将处理电站" + str(DIANZHAN_ID))
 
 warnings.filterwarnings('ignore')  # 抑制一些不重要警告
 plt.style.use('ggplot')  # 使用更好的绘图样式
@@ -62,6 +69,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # 第二步：检测异常值 - 基于统计和业务知识
     # 方法1：隔离森林
+    print("数据集异常值检测 - 方法1：隔离森林")
     scaler = StandardScaler()
     features = cleaned_df[['小时', '周天', '年天', VALUE_COL]]
     features_scaled = scaler.fit_transform(features)
@@ -74,6 +82,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     iso_outliers = iso_forest.fit_predict(features_scaled) == -1
     
     # 方法2：时间序列分解异常检测
+    print("数据集异常值检测 - 方法2：时间序列分解异常检测")
     stl = STL(
         cleaned_df[VALUE_COL],
         period=24 * 4, # 4个点/小时 * 24小时/天
@@ -86,6 +95,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # 方法3：基于业务逻辑检测 - 夜间值应为0
     # （根据数据集的特征易知，晚上不可能有辐照值）
+    print("数据集异常值检测 - 方法3：基于业务逻辑检测 - 夜间值应为0")
     night_outliers = (
         ((cleaned_df['小时'] < 6) | (cleaned_df['小时'] > 19)) &
         (cleaned_df[VALUE_COL] > 5)
@@ -93,7 +103,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # 综合异常检测结果
     combined_outliers = iso_outliers | resid_outliers | night_outliers.values
-    print(f"所检测到的数据集中的异常值数量：{combined_outliers.sum()}")
+    print(f"完毕，所检测到的数据集中的异常值数量：{combined_outliers.sum()}")
     
     # 可视化异常值（通过matplotlib绘图）
     plt.figure(figsize=(14, 6))
