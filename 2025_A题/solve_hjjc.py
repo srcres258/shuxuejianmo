@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy import stats, interpolate, optimize
+from scipy import optimize
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
@@ -13,19 +13,20 @@ import seaborn as sns
 from sklearn.metrics import r2_score
 
 # 设置字体，能够显示中文
-matplotlib.rc("font",family='SimSun',weight="bold")
+matplotlib.rc("font", family='SimSun', weight="bold")
 
 DIANZHAN_ID: int
 TIME_COL: str = '时间'
 VALUE_COL: str = '辐照强度w/m2'
 ESTIMATED_VALUE_COL: str = '估计辐照强度w/m2'
 
+print("电站【环境检测仪数据】处理程序")
 DIANZHAN_ID = int(input("请输入要处理的电站编号："))
 if DIANZHAN_ID not in range(1, 5):
     print("输入错误，电站编号为1~4，请重新输入！")
     exit(1)
     
-print("将处理电站" + str(DIANZHAN_ID))
+print("将处理电站" + str(DIANZHAN_ID) + "的环境检测仪数据")
 
 warnings.filterwarnings('ignore')  # 抑制一些不重要警告
 plt.style.use('ggplot')  # 使用更好的绘图样式
@@ -145,113 +146,149 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 print("2. 数据清洗与异常值检测...")
 cleaned_data = clean_data(data)
 
-## 3. 构建改进的周期性函数模型
+# 3. 构建精准的日夜分离模型
 def build_model(df):
-    """构建更精确的辐照强度预测模型"""
+    """构建平滑过渡的辐照强度预测模型"""
     
     # 提取重要时间特征
-    day_of_year = df.index.dayofyear.values  # 一年中的天数(1-365)
+    days_from_start = (df.index - df.index[0]).days.values  # 相对于起始日的天数
     hour_of_day = (df.index.hour + df.index.minute/60).values  # 一天中的小数小时
     values = df[VALUE_COL].values
     
-    # 使用混合模型：日变化模型 + 季节变化模型
+    # 安全处理数据
+    safe_days = np.clip(days_from_start, -365, 365)
+    safe_hours = np.clip(hour_of_day, 0, 24)
+    safe_values = np.nan_to_num(values, nan=0.0, posinf=1000, neginf=0.0)
+    safe_values = np.clip(safe_values, 0, 2000)
+    
+    # 定义更精细的辐照强度模型
     def irradiance_model(x, *params):
         """
-        更精确的辐照强度模型
-        x: [day_of_year, hour_of_day]
+        更精细的辐照强度模型
+        x: [days_from_start, hour_of_day]
         params: 模型参数
         """
-        # 解析输入
+        
         d, h = x[0], x[1]
         
         # 解析参数
-        # 日变化参数 (二次多项式系数)
+        # 日变化参数
         a_h = params[0]    # 二次项系数
         b_h = params[1]    # 一次项系数
-        c_h = params[2]    # 常数项
-        peak_h = params[3] # 高峰小时
+        peak_h = params[2] # 高峰小时
         
-        # 季节变化参数 (正弦模型)
-        a_d = params[4]    # 振幅
-        phase_d = params[5] # 相位
-        offset_d = params[6] # 基准值
+        # 季节变化参数
+        a_d = params[3]    # 季节振幅
+        phase_d = params[4] # 季节相位
+        offset_d = params[5] # 季节基准值
         
         # 日变化模型 (二次函数)
-        # 将小时转换为以高峰小时为中心
         h_centered = h - peak_h
-        day_component = a_h * h_centered**2 + b_h * h_centered + c_h
+        day_component = a_h * h_centered**2 + b_h * h_centered
         
         # 季节变化模型 (正弦函数)
         season_component = a_d * np.sin(2 * np.pi * d/365 + phase_d) + offset_d
         
-        # 组合模型并确保非负
-        return np.maximum(0, day_component * season_component)
+        # 组合模型 - 使用sigmoid确保正值
+        combined = 1 / (1 + np.exp(-(day_component + season_component)))
+        
+        # 应用日出日落平滑过渡
+        # 计算日出日落时间 (6:00-18:00简化模型)
+        sunrise = 6.0
+        sunset = 20.0
+        
+        # 日出前过渡 (4:00-6:00)
+        if h < sunrise:
+            # 日出前2小时开始平滑上升
+            transition = max(0, min(1, (h - (sunrise - 2)) / 2))
+            combined *= transition
+        
+        # 日落后过渡 (18:00-20:00)
+        elif h > sunset:
+            # 日落2小时后完全黑暗
+            transition = max(0, min(1, ((sunset + 2) - h) / 2))
+            combined *= transition
+        
+        # 限制最大值在1000 w/m²内
+        return np.minimum(combined * 1000, 1000)
     
     # 初始参数估计 - 基于领域知识
-    # 日变化参数
-    a_h_guess = -1.0  # 二次项系数 (负值表示抛物线开口向下)
-    b_h_guess = 0.0    # 一次项系数 (对称模型)
-    c_h_guess = 100.0  # 常数项
-    peak_h_guess = 13.0 # 高峰小时(下午1点)
-    
-    # 季节变化参数
-    a_d_guess = 0.5    # 振幅
-    phase_d_guess = 0.0 # 相位
-    offset_d_guess = 1.0 # 基准值
-    
-    # 组合初始参数
     initial_params = [
-        a_h_guess, b_h_guess, c_h_guess, peak_h_guess,
-        a_d_guess, phase_d_guess, offset_d_guess
+        -0.5,    # a_h (二次项系数)
+        15.0,    # b_h (一次项系数)
+        13.0,    # peak_h (高峰小时)
+        0.3,     # a_d (季节振幅)
+        0.0,     # phase_d (季节相位)
+        1.5      # offset_d (季节基准值)
     ]
     
     # 数据点矩阵
-    x_data = np.vstack([day_of_year, hour_of_day])
+    x_data = np.vstack([safe_days, safe_hours])
     
-    # 拟合模型
-    params, _ = optimize.curve_fit(
-        irradiance_model, 
-        x_data, 
-        values,
-        p0=initial_params,
-        bounds=(
-            [-5.0, -10.0, 0, 10.0,  0, 0, 0.5],  # 下限
-            [0, 10.0, 500, 15.0, 1.0, 2*np.pi, 2.0]  # 上限
-        ),
-        maxfev=10000  # 增加迭代次数
-    )
+    # 拟合模型 - 使用更健壮的优化方法
+    try:
+        params, _ = optimize.curve_fit(
+            irradiance_model, 
+            x_data, 
+            safe_values,
+            p0=initial_params,
+            bounds=(
+                [-2.0, 0, 10.0, 0.1, 0, 0.5],   # 下限
+                [0, 30.0, 15.0, 1.0, 2*np.pi, 3.0]  # 上限
+            ),
+            maxfev=20000
+        )
+        print("模型拟合成功")
+    except Exception as e:
+        print(f"模型拟合失败: {e}")
+        print("使用初始参数作为回退")
+        params = initial_params
     
     # 输出拟合参数
-    print(f"拟合参数: a_h={params[0]:.4f}, b_h={params[1]:.4f}, c_h={params[2]:.4f}")
-    print(f"          peak_h={params[3]:.2f}, a_d={params[4]:.4f}")
-    print(f"          phase_d={params[5]:.4f}, offset_d={params[6]:.4f}")
+    print(f"拟合参数: a_h={params[0]:.4f}, b_h={params[1]:.4f}, peak_h={params[2]:.2f}")
+    print(f"          a_d={params[3]:.4f}, phase_d={params[4]:.4f}, offset_d={params[5]:.4f}")
     
     # 评估模型在训练数据上的表现
-    pred_values = irradiance_model(x_data, *params)
-    r2 = r2_score(values, pred_values)
-    print(f"模型R²分数: {r2:.4f}")
+    try:
+        pred_values = irradiance_model(x_data, *params)
+        r2 = r2_score(safe_values, pred_values)
+        print(f"模型R²分数: {r2:.4f}")
+    except Exception as e:
+        print(f"评估失败: {e}")
+        r2 = 0
     
     # 定义预测函数
     def predict_func(target_time):
-        """支持单点/多点预测的改进函数"""
+        """支持单点/多点预测的精细函数"""
+        
         if not isinstance(target_time, pd.DatetimeIndex):
             target_time = pd.DatetimeIndex([target_time])
         
-        # 提取时间特征
-        day_of_year_pred = target_time.dayofyear
+        # 计算相对于起始日的天数
+        days_from_start = (target_time - df.index[0]).days.values
+        
+        # 提取小时数
         hour_of_day_pred = (target_time.hour + 
                             target_time.minute/60 + 
                             target_time.second/3600)
         
         # 准备输入数据
-        x_pred = np.vstack([day_of_year_pred, hour_of_day_pred])
+        safe_days_pred = np.clip(days_from_start, -365, 365)
+        safe_hours_pred = np.clip(hour_of_day_pred, 0, 24)
+        x_pred = np.vstack([safe_days_pred, safe_hours_pred])
         
         # 预测辐照强度
-        pred = irradiance_model(x_pred, *params)
-        
-        # 夜间约束 (小时 < 6 或 > 19)
-        is_night = (hour_of_day_pred < 6) | (hour_of_day_pred > 19)
-        pred = np.where(is_night, np.minimum(pred, 5), pred)
+        try:
+            pred = irradiance_model(x_pred, *params)
+        except Exception as e:
+            print(f"预测出错: {e}")
+            # 简单回退：基于时间的粗略估计
+            # 白天：根据小时估算，夜间：0
+            pred = np.where(
+                (safe_hours_pred >= 6) & (safe_hours_pred <= 18),
+                500 * np.sin(np.pi * (safe_hours_pred - 6) / 12),
+                0
+            )
         
         # 确保非负值
         pred = np.maximum(pred, 0)
