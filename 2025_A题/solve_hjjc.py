@@ -193,17 +193,17 @@ def build_model(df):
         combined = 1 / (1 + np.exp(-(day_component + season_component)))
         
         # 应用日出日落平滑过渡
-        # 计算日出日落时间 (6:00-18:00简化模型)
-        sunrise = 6.0
-        sunset = 20.0
+        # 计算日出日落时间 (8:00-20:00简化模型)
+        sunrise = 8.0
+        sunset = 18.0
         
-        # 日出前过渡 (4:00-6:00)
+        # 日出前过渡 (6:00-8:00)
         if h < sunrise:
             # 日出前2小时开始平滑上升
             transition = max(0, min(1, (h - (sunrise - 2)) / 2))
             combined *= transition
         
-        # 日落后过渡 (18:00-20:00)
+        # 日落后过渡 (20:00-22:00)
         elif h > sunset:
             # 日落2小时后完全黑暗
             transition = max(0, min(1, ((sunset + 2) - h) / 2))
