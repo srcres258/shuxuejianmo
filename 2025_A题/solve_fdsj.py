@@ -119,7 +119,7 @@ s_factor = 0.5 * len(df_day)   # 经验值，可自行调参
 spline = UnivariateSpline(t_seconds, E_day, s=s_factor)
 
 # 为了在夜间返回 0，定义包装函数
-def f_cumulative(t):
+def f_cumulative(t, set_later_half_to_zero=True):
     """
     输入：numpy array / pandas DatetimeIndex（UTC/本地均可，只要对应 epoch）
     输出：对应的累计发电量（kWh），夜间强制为 0
@@ -137,7 +137,11 @@ def f_cumulative(t):
     else:
         # 若是 ndarray，先转为 datetime 再取 hour
         hour = pd.to_datetime(t, unit='s').hour
-    y[ (hour < 6) | (hour > 20) ] = 0.0
+    print("y type:", type(y))
+    if set_later_half_to_zero:
+        y[ (hour < 6) | (hour > 20) ] = 0.0
+    else:
+        y[ hour < 6 ] = 0.0
     # 防止出现负值（数值误差导致）
     y = np.maximum(y, 0.0)
     return y
@@ -160,8 +164,17 @@ estimated_data = pd.DataFrame({
 })
 estimated_data.set_index(TIME_COL, inplace=True)
 
-print("\n=== 预测数据（前 10 行） ===")
-print(estimated_data.head(10))
+# 修正预测数据集，补全每天晚间时段到第二天00:00:00的数据
+# （不应该是0.0，而是维持当天最高发电量）
+for i, row in enumerate(estimated_data.itertuples()):
+    kwh = row[1]
+    if kwh == 0.0 and not str(row[0]).endswith('00:00:00') and i > 0:
+        last_kwh = estimated_data.iloc[i - 1, 0]
+        if last_kwh > 0.0:
+            estimated_data.iloc[i, 0] = last_kwh
+
+print("\n=== 预测数据（前 30 行） ===")
+print(estimated_data.head(30))
 
 # ----------------------------------------------------------------------
 # 7. 评估模型（在原始（清洗后）时间点上对比）
@@ -170,7 +183,7 @@ print("7. 评估模型")
 
 # 取原始清洗后数据对应的时间点的预测值
 y_true = df_clean[VALUE_COL]
-y_pred = pd.Series(f_cumulative(df_clean.index), index=df_clean.index)
+y_pred = pd.Series(f_cumulative(df_clean.index, set_later_half_to_zero=False), index=df_clean.index)
 
 mae  = mean_absolute_error(y_true, y_pred)
 rmse = np.sqrt(mean_squared_error(y_true, y_pred))
