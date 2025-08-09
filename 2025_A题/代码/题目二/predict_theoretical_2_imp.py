@@ -29,6 +29,7 @@ class DustIndexCalculator:
         alpha: EWMA平滑系数 (0 < alpha < 1)
         reset_threshold: 灰尘指数重置阈值
         """
+        
         self.alpha = alpha
         self.reset_threshold = reset_threshold
         self.max_deviation = 1e-6  # 初始化为小值，避免除以零
@@ -46,6 +47,7 @@ class DustIndexCalculator:
         返回:
         添加了Dust_Index列的DataFrame
         """
+        
         # 创建副本避免修改原始数据
         df = df.copy()
         
@@ -89,6 +91,7 @@ class DustIndexCalculator:
     
     def _environmental_correction(self, df, features):
         """使用环境因素校正偏差，避免NaN值"""
+        
         # 创建环境校正模型
         # 选择有效数据点（偏差大于零）
         valid_mask = df['相对偏差'] > 0
@@ -119,6 +122,7 @@ class DustIndexCalculator:
     
     def _apply_ewma(self, df):
         """应用指数加权移动平均，处理NaN值"""
+        
         # 按时间排序
         df = df.sort_values('时间')
         
@@ -147,6 +151,7 @@ class DustIndexCalculator:
     
     def _detect_cleaning_events(self, df):
         """检测清洗事件并重置指数，避免NaN值"""
+        
         # 按天分组计算平均灰尘指数
         daily_avg = df.groupby(df['时间'].dt.date)['Dust_Index'].mean().reset_index()
         daily_avg.columns = ['日期', '日均灰尘指数']
@@ -174,6 +179,7 @@ class DustIndexCalculator:
     
     def cleaning_recommendation(self, current_index=None):
         """根据当前灰尘指数给出清洗建议"""
+        
         if current_index is None:
             current_index = self.last_dust_index
         
@@ -186,6 +192,7 @@ class DustIndexCalculator:
     
     def plot_dust_index(self, df):
         """可视化灰尘指数"""
+        
         plt.figure(figsize=(15, 8))
         
         # 灰尘指数时间序列
@@ -287,7 +294,7 @@ def main():
         else:
             print("灰尘指数正常，无需预警")
     else:
-        print("警告: 未能计算灰尘指数")
+        print("计算失败: 未能计算灰尘指数")
 
 if __name__ == "__main__":
     main()

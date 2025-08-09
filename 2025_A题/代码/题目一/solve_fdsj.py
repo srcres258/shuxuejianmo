@@ -1,12 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-光伏电站累计发电量时序分析
-- 读取 CSV
-- 缺失/异常值清洗
-- 基于白天数据构建连续单值函数（样条）
-- 按整小时生成预测序列 estimated_data
-- 计算 MAE、RMSE、R²
-- （可选）输出灰尘影响指数（残差）
+光伏电站累计发电量时序分析程序
 """
 
 import pandas as pd
@@ -124,6 +118,7 @@ def f_cumulative(t, set_later_half_to_zero=True):
     输入：numpy array / pandas DatetimeIndex（UTC/本地均可，只要对应 epoch）
     输出：对应的累计发电量（kWh），夜间强制为 0
     """
+    
     # 转为秒数
     if isinstance(t, pd.DatetimeIndex) or isinstance(t, pd.Series):
         t_sec = (t - epoch).total_seconds()
@@ -213,13 +208,8 @@ plt.legend()
 plt.tight_layout()
 plt.show()
 
-# 若想得到每日的灰尘指数（例如每日最大残差），可以：
-daily_dust_index = residual.resample('D').max()
-print("\n每日灰尘影响指数（最大残差）示例：")
-print(daily_dust_index.head())
-
 # ----------------------------------------------------------------------
-# 9. 保存结果（可选）
+# 9. 保存结果
 # ----------------------------------------------------------------------
 print("9. 保存结果")
 

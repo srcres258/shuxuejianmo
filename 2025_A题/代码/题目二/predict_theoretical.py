@@ -18,10 +18,6 @@ warnings.filterwarnings('ignore')
 # 设置字体，能够显示中文
 matplotlib.rc("font", family='SimSun', weight="bold")
 
-# 配置绘图风格
-# plt.style.use('seaborn-whitegrid')
-# sns.set_palette('colorblind')
-
 # 1. 高级数据预处理
 def preprocess_data(df):
     # 复制数据避免修改原始数据
