@@ -9,10 +9,12 @@ import pvlib
 import matplotlib
 
 # 设置字体，能够显示中文
-matplotlib.rc("font", family='SimSun', weight="bold")
+matplotlib.rc("font", family='SimHei', weight="bold")
+
+DIANZHAN_ID: int = int(input("请输入电站ID: "))
 
 # 加载数据
-data = pd.read_csv('附件/电站1_估计_汇总_预测_灰尘指数.csv')
+data = pd.read_csv(f'附件/电站{DIANZHAN_ID}_估计_汇总_预测_灰尘指数.csv')
 
 # 数据清洗
 def clean_data(df):
@@ -162,6 +164,7 @@ def plot_results(daily_df, sensitivity_results):
     plt.grid(True)
 
     plt.tight_layout()
+    plt.savefig(f'附件/电站{DIANZHAN_ID}_决策.png', dpi=300)
     plt.show()
 
 plot_results(daily_data, sensitivity_results)

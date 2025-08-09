@@ -22,7 +22,9 @@ warnings.filterwarnings('ignore')
 import matplotlib
 
 # 设置字体，能够显示中文
-matplotlib.rc("font", family='SimSun', weight="bold")
+matplotlib.rc("font", family='宋体', weight="bold")
+
+DIANZHAN_ID: int = int(input("请输入电站ID: "))
 
 # 配置环境
 plt.style.use('seaborn-whitegrid')
@@ -356,9 +358,9 @@ def evaluate_and_visualize(full_df, mae, rmse, r2, daylight_mask):
                      alpha=0.7, linewidth=1.5, label=f'实际值 ({date})')
             plt.plot(group['时间'], group['预测累计发电量'], 'r--', 
                      alpha=0.8, linewidth=1.5, label=f'预测值 ({date})')
-    plt.title(f'每日实际与预测累计发电量对比\nR²={r2:.4f}, MAE={mae:.2f} kWh', fontsize=14)
-    plt.xlabel('时间')
-    plt.ylabel('累计发电量 (kWh)')
+    plt.title(f'Comparison of daily actual and predicted cumulative power generation\nR²={r2:.4f}, MAE={mae:.2f} kWh', fontsize=14)
+    plt.xlabel('Time')
+    plt.ylabel('Accumulated power generation (kWh)')
     plt.grid(True)
     plt.legend()
     
@@ -367,18 +369,18 @@ def evaluate_and_visualize(full_df, mae, rmse, r2, daylight_mask):
     if daylight_mask is not None:
         daylight = full_df[daylight_mask].copy()
         if not daylight.empty:
-            plt.scatter(daylight['时间'], daylight['小时发电量'], alpha=0.5, s=30, label='实际小时发电量')
-            plt.scatter(daylight['时间'], daylight['预测小时发电量'], alpha=0.5, s=30, c='r', label='预测小时发电量')
+            plt.scatter(daylight['时间'], daylight['小时发电量'], alpha=0.5, s=30, label='Actual hourly power generation')
+            plt.scatter(daylight['时间'], daylight['预测小时发电量'], alpha=0.5, s=30, c='r', label='Estimated hourly power generation')
             
             # 添加趋势线
             plt.plot(daylight['时间'], daylight['小时发电量'].rolling(24, min_periods=1).mean(), 
-                     'g-', linewidth=2, label='实际24h平均')
+                     'g-', linewidth=2, label='Actual 24h average')
             plt.plot(daylight['时间'], daylight['预测小时发电量'].rolling(24, min_periods=1).mean(), 
-                     'm-', linewidth=2, label='预测24h平均')
+                     'm-', linewidth=2, label='Estimated 24h average')
             
-            plt.title('每小时实际与预测发电量对比', fontsize=14)
-            plt.xlabel('时间')
-            plt.ylabel('小时发电量 (kWh)')
+            plt.title('Comparison of actual and estimated hourly power generation', fontsize=14)
+            plt.xlabel('Time')
+            plt.ylabel('Hourly power generation (kWh)')
             plt.legend()
             plt.grid(True)
     
@@ -391,9 +393,9 @@ def evaluate_and_visualize(full_df, mae, rmse, r2, daylight_mask):
         if not daylight.empty and '残差' in daylight.columns:
             sns.histplot(daylight['残差'], kde=True, bins=30)
             plt.axvline(x=0, color='r', linestyle='--')
-            plt.title(f'残差分布 (MAE={mae:.2f}, RMSE={rmse:.2f})', fontsize=14)
-            plt.xlabel('残差 (kWh)')
-            plt.ylabel('频率')
+            plt.title(f'Distribution of residuals (MAE={mae:.2f}, RMSE={rmse:.2f})', fontsize=14)
+            plt.xlabel('Residual (kWh)')
+            plt.ylabel('Frequency')
             plt.grid(True)
     
     # 辐照强度与发电量关系
@@ -412,14 +414,14 @@ def evaluate_and_visualize(full_df, mae, rmse, r2, daylight_mask):
                 sorted_irrad = np.sort(daylight['估计辐照强度w/m2'])
                 plt.plot(sorted_irrad, poly1d_fn(sorted_irrad), 'r-', linewidth=2)
             
-            plt.title('辐照强度、温度与发电量关系', fontsize=14)
-            plt.xlabel('辐照强度 (w/m2)')
-            plt.ylabel('小时发电量 (kWh)')
+            plt.title('Relationship', fontsize=14)
+            plt.xlabel('Radiation intensity (w/m2)')
+            plt.ylabel('Hourly power generation (kWh)')
             plt.grid(True)
     
     # 优化布局并保存
     plt.tight_layout()
-    plt.savefig('enhanced_pv_model_results.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'附件/题目二_电站{DIANZHAN_ID}.png', dpi=300, bbox_inches='tight')
     plt.show()
     plt.close()
     
@@ -432,7 +434,7 @@ def main():
     # 1. 数据读取
     print("步骤1/5: 读取数据...")
     try:
-        df = pd.read_csv('附件/电站1_估计_汇总.csv', parse_dates=['时间'])
+        df = pd.read_csv(f'附件/电站{DIANZHAN_ID}_估计_汇总.csv', parse_dates=['时间'])
         print(f"数据读取成功: {len(df)}行记录")
     except Exception as e:
         print(f"数据读取失败: {e}")
@@ -531,10 +533,10 @@ def main():
     evaluate_and_visualize(full_df, mae, rmse, r2, daylight_mask)
     
     # 保存数据
-    filename = '附件/电站1_估计_汇总_预测.csv'
+    filename = f'附件/电站{DIANZHAN_ID}_估计_汇总_预测.csv'
     full_df.to_csv(filename, index=False)
     print("\n结果已保存至: " + filename)
-    print("可视化已保存为: enhanced_pv_model_results.png")
+    print("可视化图片已保存")
     
     # 附加性能提示
     print("\n===== 分析完成 =====")

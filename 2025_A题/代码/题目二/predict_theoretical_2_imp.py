@@ -10,7 +10,10 @@ import matplotlib
 warnings.filterwarnings('ignore')
 
 # 设置字体，能够显示中文
-matplotlib.rc("font", family='SimSun', weight="bold")
+matplotlib.rc("font", family='SimHei', weight="bold")
+
+
+DIANZHAN_ID: int = int(input("请输入电站ID: "))
 
 # 配置环境
 plt.style.use('seaborn-whitegrid')
@@ -196,9 +199,9 @@ class DustIndexCalculator:
             plt.axvline(x=pd.to_datetime(self.last_cleaning_date), color='green', 
                         linestyle='--', alpha=0.7, label='上次清洗')
         
-        plt.title('光伏板积灰指数时间序列', fontsize=14)
-        plt.xlabel('时间')
-        plt.ylabel('灰尘指数')
+        plt.title('Time Series of Dust Index', fontsize=14)
+        plt.xlabel('Time')
+        plt.ylabel('Dust Index')
         plt.ylim(0, 1)
         plt.legend()
         plt.grid(True)
@@ -208,13 +211,13 @@ class DustIndexCalculator:
         sns.histplot(df['Dust_Index'], bins=20, kde=True)
         plt.axvline(x=0.7, color='orange', linestyle='--')
         plt.axvline(x=0.85, color='red', linestyle='--')
-        plt.title('灰尘指数分布', fontsize=14)
-        plt.xlabel('灰尘指数')
-        plt.ylabel('频率')
+        plt.title('Distribution of Dust Index', fontsize=14)
+        plt.xlabel('Dust Index')
+        plt.ylabel('Frequency')
         plt.grid(True)
         
         plt.tight_layout()
-        plt.savefig('dust_index_analysis.png', dpi=300)
+        plt.savefig(f'附件/题目二_电站{DIANZHAN_ID}_积灰指数.png', dpi=300)
         plt.close()
 
 # 主程序
@@ -224,7 +227,7 @@ def main():
     # 1. 读取数据
     print("步骤1/4: 读取数据...")
     try:
-        df = pd.read_csv('附件/电站1_估计_汇总_预测.csv', parse_dates=['时间'])
+        df = pd.read_csv(f'附件/电站{DIANZHAN_ID}_估计_汇总_预测.csv', parse_dates=['时间'])
         print(f"数据读取成功: {len(df)}行记录")
         
         # 检查必要列是否存在
@@ -262,10 +265,10 @@ def main():
     dust_calculator.plot_dust_index(df)
     
     # 保存结果
-    filename = '附件/电站1_估计_汇总_预测_灰尘指数.csv'
+    filename = f'附件/电站{DIANZHAN_ID}_估计_汇总_预测_灰尘指数.csv'
     df.to_csv(filename, index=False)
     print("\n结果已保存至: " + filename)
-    print("可视化已保存为: dust_index_analysis.png")
+    print("可视化图片已保存")
     
     # 预警分析
     if 'Dust_Index' in df.columns:
